@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block titulo %}{{ e.nombre }}{% endblock %}
+{% block contenido %}
+<div class="miga"><span>Empresas /</span> {{ e.nombre }}</div>
+
+<form class="tarjeta" method="post" action="{{ url_for('guardar_empresa', empresa_id=e.id) }}">
+  <div class="cab-tarjeta">
+    <h2>Datos de empresa</h2>
+    {% if not e.fecha_fin_contrato %}<span class="aviso">&#9888; No consta fecha fin de contrato &#9888;</span>{% endif %}
+    {% if e.estado_cliente != 'activo' %}<span class="etq etq-amarilla">{{ ESTADOS_CLIENTE[e.estado_cliente] }}</span>{% endif %}
+  </div>
+  <br>
+  <div class="rejilla r6">
+    <div class="campo"><label>Nombre:</label><input name="nombre" value="{{ e.nombre }}"></div>
+    <div class="campo"><label>CIF:</label><input value="{{ e.cif }}" disabled title="El CIF es la clave de integración y no se edita aquí"></div>
+    <div class="campo"><label>Empleados:</label><input name="num_empleados" type="number" value="{{ e.num_empleados }}"></div>
+    <div class="campo"><label>Encargado:</label><select name="encargado"><option value="0" {{ 'selected' if not e.encargado }}>No</option><option value="1" {{ 'selected' if e.encargado }}>Sí</option></select></div>
+    <div class="campo"><label>Última factura:</label><input value="{{ e.ultima_factura_importe|euros if e.ultima_factura_importe else '0 - N/A' }}{% if e.ultima_factura_fecha %} · {{ e.ultima_factura_fecha|fecha }}{% endif %}" disabled></div>
+    <div class="campo"><label>Agente venta:</label><select name="agente_venta_id">{% for v in ventas %}<option value="{{ v.id }}" {{ 'selected' if v.id == e.agente_venta_id }}>{{ v.nombre }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="rejilla r4b" style="margin-top:16px">
+    <div class="campo"><label>Gerente:</label><input name="gerente" value="{{ e.gerente or '' }}"></div>
+    <div class="campo"><label>Teléfono:</label><input name="telefono" value="{{ e.telefono or '' }}"></div>
+    <div class="campo"><label>Email:</label><input name="email" value="{{ e.email or '' }}"></div>
+    <div class="campo"><label>Dirección:</label><input name="direccion" value="{{ e.direccion or '' }}"></div>
+  </div>
+
+  <h3>Puesta en marcha</h3>
+  <div class="rejilla r5">
+    <div class="campo"><label>Fecha alta:</label><input type="date" name="fecha_alta" value="{{ e.fecha_alta }}"></div>
+    <div class="campo"><label>Implementación gerente:</label><input type="date" name="implementacion_gerente" value="{{ e.implementacion_gerente or '' }}"></div>
+    <div class="campo"><label>Implementación empleados:</label><input type="date" name="implementacion_empleados" value="{{ e.implementacion_empleados or '' }}"></div>
+    <div class="campo"><label>Seguimiento mes:</label><input type="date" name="seguimiento_mes" value="{{ e.seguimiento_mes or '' }}"></div>
+    <div class="campo"><label>Correos de incidencias:</label><input name="correos_incidencias" value="{{ e.correos_incidencias or '' }}"></div>
+  </div>
+
+  <h3>Actividad</h3>
+  <div class="rejilla r5">
+    <div class="campo"><label>Fichajes este mes:</label><div class="con-boton"><input value="{{ e.fichajes_mes_actual }}" disabled><a class="btn btn-amarillo btn-peq" href="">&#8635;</a></div></div>
+    <div class="campo"><label>Fichajes anterior:</label><div class="con-boton"><input value="{{ e.fichajes_mes_anterior }}" disabled><a class="btn btn-amarillo btn-peq" href="">&#8635;</a></div></div>
+    <div class="campo"><label>Forma de pago:</label><select name="forma_pago">{% for f in FORMAS_PAGO %}<option {{ 'selected' if f == e.forma_pago }}>{{ f }}</option>{% endfor %}</select></div>
+    <div class="campo"><label>Fondos europeos:</label><select name="fondos_europeos">{% for f in ['No tiene', 'Kit Digital'] %}<option {{ 'selected' if f == e.fondos_europeos }}>{{ f }}</option>{% endfor %}</select></div>
+    <div class="campo"><label>Fecha fin contrato:</label><input type="date" name="fecha_fin_contrato" value="{{ e.fecha_fin_contrato or '' }}"></div>
+  </div>
+  <div class="rejilla r5" style="margin-top:16px">
+    <div class="campo"><label>Estado del cliente:</label><select name="estado_cliente">{% for k, v in ESTADOS_CLIENTE.items() %}<option value="{{ k }}" {{ 'selected' if k == e.estado_cliente }}>{{ v }}</option>{% endfor %}</select></div>
+  </div>
+  <div class="botones-der"><button class="btn btn-azul">Guardar cambios</button></div>
+</form>
+
+<div class="tarjeta pie-tarjeta">
+  <div>
+    <span style="color:var(--texto-suave)">Estado de pago:</span>&nbsp;
+    <span class="etq etq-{{ e.estado_pago }}">{{ ESTADOS_PAGO[e.estado_pago] }}</span>
+    &nbsp; <a href="#" onclick="abrir('modal-historial');return false" style="font-size:13px">Ver histórico ({{ historial|length }})</a>
+  </div>
+  <form method="post" action="{{ url_for('web_estado_pago', empresa_id=e.id) }}">
+    {% if e.estado_pago == 'al_dia' %}
+      <input type="hidden" name="estado" value="deudora"><button class="btn btn-azul">Marcar como deudora</button>
+    {% else %}
+      <input type="hidden" name="estado" value="al_dia"><button class="btn btn-verde">Marcar como al día</button>
+    {% endif %}
+  </form>
+</div>
+
+<form class="tarjeta" method="post" action="{{ url_for('guardar_resena', empresa_id=e.id) }}">
+  <div class="cab-tarjeta"><h2>Reseña en App Store</h2>
+    <span class="etq {{ 'etq-verde etq-al_dia' if e.resena_estado == 'realizada' else 'etq-amarilla' }}">{{ ESTADOS_RESENA[e.resena_estado] }}</span></div><br>
+  <div class="form-linea">
+    <div class="campo" style="flex:1"><label>Agente que solicita:</label>
+      <select name="resena_agente_id"><option value="">Select value</option>{% for a in agentes %}<option value="{{ a.id }}" {{ 'selected' if a.id == e.resena_agente_id }}>{{ a.nombre }}</option>{% endfor %}</select></div>
+    <div class="campo" style="flex:1"><label>Estado:</label>
+      <select name="resena_estado">{% for k, v in ESTADOS_RESENA.items() %}<option value="{{ k }}" {{ 'selected' if k == e.resena_estado }}>{{ v }}</option>{% endfor %}</select></div>
+    <button class="btn btn-azul">Guardar</button>
+  </div>
+</form>
+
+<div class="centro"><button class="btn btn-azul" onclick="abrir('modal-caso')">Nuevo caso</button></div>
+
+<div class="cab-tarjeta" style="margin-bottom:14px"><span style="color:var(--titulo)">Casos de la Empresa</span><span class="pill">&#128193; {{ casos|length }} casos</span></div>
+{% for c in casos %}
+  <div class="fila-casos" style="margin-bottom:14px">
+    <div class="caso"><a class="txt" href="{{ url_for('ver_caso', caso_id=c.id) }}">
+      <span>Nº {{ c.id }}: &nbsp; {{ c.fecha_apertura|fecha(true) }} - {{ c.asunto }} - {{ c.fecha_actualizacion|fecha(true) }} &nbsp;<span class="punto punto-{{ c.estado }}"></span>
+      {% if c.escalado %}<span class="etq etq-azul">Escalado</span>{% endif %}{% if c.sensible %} <span class="etq etq-deudora">Sensible</span>{% endif %}</span>
+      <span>&#8964;</span></a></div>
+    <a class="cuadro" href="{{ url_for('ver_caso', caso_id=c.id) }}">&#10697;</a>
+  </div>
+{% else %}<p class="vacio">Esta empresa no tiene casos.</p>{% endfor %}
+
+<div class="tarjeta" id="trabajadores" style="margin-top:30px">
+  <div class="cab-tarjeta"><h2>Trabajadores ({{ trabajadores|selectattr('activo')|list|length }} activos)</h2>
+    <button class="btn btn-azul btn-peq" onclick="abrir('modal-trabajador')">+ Alta trabajador</button></div><br>
+  <table>
+    <thead><tr><th>Nombre</th><th>Email</th><th>Puesto</th><th>Alta</th><th>Baja</th><th></th></tr></thead>
+    <tbody>
+    {% for t in trabajadores %}
+      <tr style="{{ '' if t.activo else 'opacity:.5' }}"><td>{{ t.nombre }}</td><td>{{ t.email or '-' }}</td><td>{{ t.puesto or '-' }}</td>
+        <td>{{ t.fecha_alta|fecha }}</td><td>{{ t.fecha_baja|fecha }}</td>
+        <td>{% if t.activo %}<form method="post" action="{{ url_for('baja_trabajador_web', tid=t.id) }}" onsubmit="return confirm('¿Dar de baja a {{ t.nombre }}?')"><button class="btn btn-borde btn-peq">Baja</button></form>{% endif %}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Modal histórico de estado de pago -->
+<div class="modal" id="modal-historial" onclick="if(event.target===this)cerrar('modal-historial')">
+  <div class="caja">
+    <h3>Histórico de estado de pago — {{ e.nombre }} <button onclick="cerrar('modal-historial')">&times;</button></h3>
+    <table>
+      <thead><tr><th>Fecha</th><th>Estado</th><th>Agente</th><th>Origen</th></tr></thead>
+      <tbody>
+      {% for h in historial %}
+        <tr><td>{{ h.fecha|fecha(true) }}</td><td><span class="etq etq-{{ h.estado }}">{{ ESTADOS_PAGO[h.estado] }}</span></td>
+          <td>{{ h.agente or '-' }}</td><td>{{ 'Automatización' if h.origen == 'automatizacion' else 'Manual' }}{% if h.nota %} · <small>{{ h.nota }}</small>{% endif %}</td></tr>
+      {% else %}<tr><td colspan="4" class="vacio">Sin cambios de estado registrados.</td></tr>{% endfor %}
+      </tbody>
+    </table>
+    <div class="botones-der"><button class="btn btn-amarillo" onclick="cerrar('modal-historial')">Cerrar</button></div>
+  </div>
+</div>
+
+<!-- Modal nuevo caso -->
+<div class="modal" id="modal-caso" onclick="if(event.target===this)cerrar('modal-caso')">
+  <form class="caja" method="post" action="{{ url_for('nuevo_caso_web', empresa_id=e.id) }}">
+    <h3>Nuevo caso — {{ e.nombre }} <button type="button" onclick="cerrar('modal-caso')">&times;</button></h3>
+    <div class="rejilla" style="grid-template-columns:1fr 1fr">
+      <div class="campo" style="grid-column:1/3"><label>Asunto:</label><input name="asunto" required></div>
+      <div class="campo"><label>Categoría:</label><select name="categoria">{% for c in CATEGORIAS %}<option>{{ c }}</option>{% endfor %}</select></div>
+      <div class="campo"><label>Canal:</label><select name="canal">{% for c in CANALES %}<option>{{ c }}</option>{% endfor %}</select></div>
+      <div class="campo"><label>Asignar a:</label><select name="agente_id"><option value="">Sin asignar</option>{% for a in agentes %}<option value="{{ a.id }}" {{ 'selected' if a.id == yo.id }}>{{ a.nombre }}</option>{% endfor %}</select></div>
+      <div class="campo"><label>&nbsp;</label><label><input type="checkbox" name="escalado" style="width:auto"> Escalado</label> <label><input type="checkbox" name="sensible" style="width:auto"> Sensible</label></div>
+      <div class="campo" style="grid-column:1/3"><label>Descripción:</label><textarea name="descripcion" rows="4"></textarea></div>
+    </div>
+    <div class="botones-der"><button type="button" class="btn btn-borde" onclick="cerrar('modal-caso')">Cancelar</button><button class="btn btn-azul">Crear caso</button></div>
+  </form>
+</div>
+
+<!-- Modal alta trabajador -->
+<div class="modal" id="modal-trabajador" onclick="if(event.target===this)cerrar('modal-trabajador')">
+  <form class="caja" method="post" action="{{ url_for('nuevo_trabajador_web', empresa_id=e.id) }}">
+    <h3>Alta de trabajador <button type="button" onclick="cerrar('modal-trabajador')">&times;</button></h3>
+    <div class="rejilla" style="grid-template-columns:1fr 1fr">
+      <div class="campo"><label>Nombre completo:</label><input name="nombre" required></div>
+      <div class="campo"><label>Email:</label><input name="email" type="email"></div>
+      <div class="campo"><label>Puesto:</label><input name="puesto"></div>
+      <div class="campo"><label>Fecha alta:</label><input name="fecha_alta" type="date"></div>
+    </div>
+    <div class="botones-der"><button class="btn btn-azul">Dar de alta</button></div>
+  </form>
+</div>
+{% endblock %}

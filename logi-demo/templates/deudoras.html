@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block titulo %}Empresas deudoras{% endblock %}
+{% block contenido %}
+<div class="miga"><span>Informes /</span> Empresas deudoras</div>
+<div class="tarjeta">
+  <form class="campo" style="max-width:430px;margin-bottom:20px">
+    <label>Mostrar:</label>
+    <select name="mostrar" onchange="this.form.submit()">
+      <option value="todas" {{ 'selected' if mostrar == 'todas' }}>Todas</option>
+      <option value="deudoras" {{ 'selected' if mostrar == 'deudoras' }}>Deudoras actualmente</option>
+      <option value="al_dia" {{ 'selected' if mostrar == 'al_dia' }}>Ya al día</option>
+    </select>
+  </form>
+  <table>
+    <thead><tr><th>Empresa &#9650;</th><th>CIF</th><th>Estado</th><th>Última marca deudora</th><th>Fecha última factura</th><th>Importe última factura</th><th>Acciones</th></tr></thead>
+    <tbody>
+    {% for f in filas %}
+      <tr>
+        <td>{{ f.nombre }}</td><td>{{ f.cif }}</td>
+        <td><span class="etq etq-{{ f.estado_pago }}">{{ ESTADOS_PAGO[f.estado_pago] }}</span></td>
+        <td>{{ f.ultima_marca|fecha(true) }}</td><td>{{ f.ultima_factura_fecha|fecha }}</td><td>{{ f.ultima_factura_importe|euros }}</td>
+        <td><a href="#" onclick="abrir('h{{ f.id }}');return false" title="Histórico">&#128340;</a> &nbsp;
+            <a href="{{ url_for('ficha_empresa', empresa_id=f.id) }}" style="color:var(--amarillo)" title="Ficha">&#128065;</a></td>
+      </tr>
+    {% else %}<tr><td colspan="7" class="vacio">No hay empresas en este filtro.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% for f in filas %}
+<div class="modal" id="h{{ f.id }}" onclick="if(event.target===this)cerrar('h{{ f.id }}')">
+  <div class="caja">
+    <h3>Histórico de estado de pago — {{ f.nombre }} <button onclick="cerrar('h{{ f.id }}')">&times;</button></h3>
+    <table><thead><tr><th>Fecha</th><th>Estado</th><th>Agente</th></tr></thead><tbody>
+    {% for h in historiales[f.id] %}<tr><td>{{ h.fecha|fecha(true) }}</td><td><span class="etq etq-{{ h.estado }}">{{ ESTADOS_PAGO[h.estado] }}</span></td><td>{{ h.agente }}</td></tr>{% endfor %}
+    </tbody></table>
+    <div class="botones-der"><a class="btn btn-borde" href="{{ url_for('ficha_empresa', empresa_id=f.id) }}">Ir a la ficha</a><button class="btn btn-amarillo" onclick="cerrar('h{{ f.id }}')">Cerrar</button></div>
+  </div>
+</div>
+{% endfor %}
+{% endblock %}

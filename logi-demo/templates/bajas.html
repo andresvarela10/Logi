@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block titulo %}Solicitudes de baja{% endblock %}
+{% block contenido %}
+<div class="miga"><span>Informes /</span> Solicitudes de baja</div>
+<div class="tarjeta">
+  <table><thead><tr><th>Empresa</th><th>CIF</th><th>Estado</th><th>Fin contrato</th><th>Agente venta</th><th></th></tr></thead><tbody>
+  {% for e in filas %}<tr><td>{{ e.nombre }}</td><td>{{ e.cif }}</td><td><span class="etq etq-amarilla">{{ ESTADOS_CLIENTE[e.estado_cliente] }}</span></td>
+    <td>{{ e.fecha_fin_contrato|fecha }}</td><td>{{ e.agente_venta }}</td>
+    <td><a href="{{ url_for('ficha_empresa', empresa_id=e.id) }}" style="color:var(--amarillo)">&#128065;</a></td></tr>
+  {% else %}<tr><td colspan="6" class="vacio">No hay solicitudes de baja.</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+{% endblock %}

@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block titulo %}API{% endblock %}
+{% block contenido %}
+<div class="miga"><span>Integraciones /</span> API para Make</div>
+<div class="tarjeta">
+  <h2>Cómo autenticarse</h2>
+  <p>Todas las llamadas llevan la cabecera <code>X-API-Key: {{ api_key }}</code> (o <code>?api_key={{ api_key }}</code> en la URL).
+     Base: <code>{{ base }}/api</code>. Respuestas en JSON. Las empresas se identifican siempre por <b>CIF</b>.</p>
+  <p>En Make usa el módulo <b>HTTP → Make a request</b>, añade la cabecera y, en POST/PATCH, <i>Body type: Raw · Content type: JSON</i>.</p>
+</div>
+<div class="tarjeta">
+  <h2>Endpoints</h2><br>
+  <table>
+    <thead><tr><th>Método</th><th>Ruta</th><th>Para qué</th></tr></thead>
+    <tbody>
+      <tr><td><span class="metodo GET">GET</span></td><td><code>/api/empresas?q=&amp;estado_pago=</code></td><td>Buscar empresas por nombre/CIF, filtrar por <i>deudora</i> o <i>al_dia</i></td></tr>
+      <tr><td><span class="metodo GET">GET</span></td><td><code>/api/empresas/{cif}</code></td><td>Ficha completa de una empresa</td></tr>
+      <tr><td><span class="metodo POST">POST</span></td><td><code>/api/empresas</code></td><td>Alta de empresa (crea también su caso de alta)</td></tr>
+      <tr><td><span class="metodo PATCH">PATCH</span></td><td><code>/api/empresas/{cif}</code></td><td>Editar campos de la ficha</td></tr>
+      <tr><td><span class="metodo POST">POST</span></td><td><code>/api/empresas/{cif}/estado-pago</code></td><td>Marcar deudora / al día</td></tr>
+      <tr><td><span class="metodo GET">GET</span></td><td><code>/api/empresas/{cif}/historial-pago</code></td><td>Histórico de estado de pago</td></tr>
+      <tr><td><span class="metodo GET">GET</span></td><td><code>/api/deudoras</code></td><td>Lista de empresas deudoras ahora</td></tr>
+      <tr><td><span class="metodo POST">POST</span></td><td><code>/api/deudoras/sincronizar</code></td><td><b>Sincroniza con el Excel de deudores</b> (lista completa de CIFs)</td></tr>
+      <tr><td><span class="metodo GET">GET</span></td><td><code>/api/empresas/{cif}/trabajadores</code></td><td>Trabajadores de la empresa</td></tr>
+      <tr><td><span class="metodo POST">POST</span></td><td><code>/api/empresas/{cif}/trabajadores</code></td><td>Alta de trabajador</td></tr>
+      <tr><td><span class="metodo POST">POST</span></td><td><code>/api/trabajadores/{id}/baja</code></td><td>Baja de trabajador</td></tr>
+      <tr><td><span class="metodo GET">GET</span></td><td><code>/api/casos?estado=&amp;cif=&amp;sin_asignar=true&amp;escalado=true&amp;categoria=&amp;actualizado_desde=</code></td><td>Listar casos con filtros</td></tr>
+      <tr><td><span class="metodo GET">GET</span></td><td><code>/api/casos/{numero}</code></td><td>Detalle de un caso con sus notas</td></tr>
+      <tr><td><span class="metodo POST">POST</span></td><td><code>/api/casos</code></td><td>Crear caso (p. ej. desde un correo entrante)</td></tr>
+      <tr><td><span class="metodo PATCH">PATCH</span></td><td><code>/api/casos/{numero}</code></td><td>Cambiar estado, agente, escalado, sensible, categoría</td></tr>
+      <tr><td><span class="metodo POST">POST</span></td><td><code>/api/casos/{numero}/notas</code></td><td>Añadir nota de seguimiento</td></tr>
+    </tbody>
+  </table>
+</div>
+<div class="tarjeta">
+  <h2>Ejemplo: sincronizar el Excel de deudores</h2>
+  <p class="sub" style="margin-bottom:12px">Make lee todas las filas del Excel, junta los CIFs (Array aggregator) y hace una sola llamada:</p>
+<pre>POST {{ base }}/api/deudoras/sincronizar
+X-API-Key: {{ api_key }}
+Content-Type: application/json
+
+{
+  "cifs": ["B12345674", "B98765432"],
+  "respetar_manuales": true,
+  "simular": false
+}</pre>
+  <p>· CIF en la lista y empresa al día → pasa a <b>deudora</b>.<br>
+     · Empresa deudora que ya no está en la lista → pasa a <b>al día</b>.<br>
+     · Con <code>respetar_manuales: true</code>, las marcadas a mano por un agente no se tocan.<br>
+     · Con <code>simular: true</code> te dice qué haría sin cambiar nada (ideal para probar).<br>
+     · Todo queda en el histórico con el agente <b>Automatización</b>.</p>
+</div>
+<div class="tarjeta">
+  <h2>Ejemplo: crear un caso desde un correo</h2>
+<pre>POST {{ base }}/api/casos
+{
+  "cif": "B12345674",
+  "asunto": "No puedo fichar desde el móvil",
+  "categoria": "Error de fichaje",
+  "canal": "Email",
+  "descripcion": "Texto del correo...",
+  "agente": "Andrés Varela"
+}</pre>
+  <p>Categorías: {{ CATEGORIAS|join(', ') }}.</p>
+</div>
+{% endblock %}

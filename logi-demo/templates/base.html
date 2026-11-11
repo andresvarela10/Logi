@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}LOGI{% endblock %} · LOGI DEMO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="cabecera">
+  <div class="cab-sup">
+    <a href="{{ url_for('escritorio') }}" class="logo">L<span class="o">⚙</span>G<span class="i">I</span></a>
+    <form class="buscador-top" action="{{ url_for('buscar_empresas') }}">
+      <input name="q" placeholder="Buscar Empresa..." autocomplete="off">
+      <button title="Buscar">&#128269;</button>
+    </form>
+    <div class="iconos-top">
+      <a href="{{ url_for('api_docs') }}" title="API para integraciones">&#128268; API</a>
+      <a href="{{ url_for('informe_api') }}" title="Registro de llamadas API">&#128221;</a>
+      <div class="menu-agente">
+        <details>
+          <summary><div class="avatar" title="{{ yo.nombre }}">{{ yo.nombre.split()[0][0] }}{{ yo.nombre.split()[1][0] }}</div></summary>
+          <div class="panel">
+            <form method="post" action="{{ url_for('cambiar_agente') }}">
+              <label style="font-size:12px;color:#8a94a3">Trabajando como:</label>
+              <select name="agente_id" onchange="this.form.submit()" style="width:100%;margin-top:6px;padding:8px">
+                {% for a in agentes %}<option value="{{ a.id }}" {% if a.id == yo.id %}selected{% endif %}>{{ a.nombre }}</option>{% endfor %}
+              </select>
+            </form>
+          </div>
+        </details>
+      </div>
+    </div>
+  </div>
+  {% set p = request.path %}
+  <nav class="nav">
+    <a href="{{ url_for('escritorio') }}" class="{{ 'activo' if p == '/' }}">&#8962; Escritorio</a>
+    <a href="{{ url_for('lista_casos', vista='sin_asignar') }}" class="{{ 'activo' if request.args.get('vista') == 'sin_asignar' }}">&#128100;? Sin asignar <span class="badge">{{ cnt_sin_asignar }}</span></a>
+    <details>
+      <summary class="{{ 'activo' if request.args.get('vista') in ('asignados','todos_abiertos','cerrados') }}">&#9745; Asignados <span class="chev">&#9660;</span></summary>
+      <div class="sub">
+        <a href="{{ url_for('lista_casos', vista='asignados') }}">Asignados a mí ({{ cnt_mios }})</a>
+        <a href="{{ url_for('lista_casos', vista='todos_abiertos') }}">Todos los abiertos</a>
+        <a href="{{ url_for('lista_casos', vista='cerrados') }}">Cerrados</a>
+      </div>
+    </details>
+    <a href="{{ url_for('lista_casos', vista='escalados') }}" class="{{ 'activo' if request.args.get('vista') == 'escalados' }}">&#8599; Escalados <span class="badge">{{ cnt_escalados }}</span></a>
+    <a href="{{ url_for('lista_casos', vista='sensibles') }}" class="{{ 'activo' if request.args.get('vista') == 'sensibles' }}">&#9432; Sensibles <span class="badge">{{ cnt_sensibles }}</span></a>
+    <details>
+      <summary class="{{ 'activo' if p.startswith('/informes') }}">&#128202; Informes <span class="chev">&#9660;</span></summary>
+      <div class="sub">
+        <a href="{{ url_for('informe_deudoras') }}">Empresas deudoras</a>
+        <a href="{{ url_for('informe_contratos') }}">Fin de contrato / permanencia</a>
+        <a href="{{ url_for('informe_bajas') }}">Solicitudes de baja</a>
+        <a href="{{ url_for('informe_api') }}">Registro de la API</a>
+      </div>
+    </details>
+    <details>
+      <summary class="{{ 'activo' if p.startswith('/cartera') }}">&#128203; Cartera Clientes <span class="chev">&#9660;</span></summary>
+      <div class="sub">
+        <a href="{{ url_for('cartera') }}">Todas las empresas</a>
+        <a href="{{ url_for('cartera', estado='activo') }}">Clientes activos</a>
+        <a href="{{ url_for('cartera', estado='baja_solicitada') }}">Baja solicitada</a>
+      </div>
+    </details>
+  </nav>
+</header>
+<main>
+  {% with mensajes = get_flashed_messages() %}{% for m in mensajes %}<div class="flash">{{ m }}</div>{% endfor %}{% endwith %}
+  {% block contenido %}{% endblock %}
+</main>
+<script>
+  // Cierra los desplegables al hacer clic fuera
+  document.addEventListener('click', e => {
+    document.querySelectorAll('details[open]').forEach(d => { if (!d.contains(e.target)) d.removeAttribute('open'); });
+  });
+  function abrir(id) { document.getElementById(id).classList.add('abierto'); }
+  function cerrar(id) { document.getElementById(id).classList.remove('abierto'); }
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') document.querySelectorAll('.modal.abierto').forEach(m => m.classList.remove('abierto')); });
+</script>
+{% block scripts %}{% endblock %}
+</body>
+</html>

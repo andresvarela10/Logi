@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block titulo %}Registro de la API{% endblock %}
+{% block contenido %}
+<div class="miga"><span>Informes /</span> Registro de la API</div>
+<div class="tarjeta">
+  <p class="sub">Últimas 200 llamadas recibidas (útil para ver qué está enviando Make).</p>
+  <table><thead><tr><th>Fecha</th><th>Método</th><th>Ruta</th><th>Respuesta</th><th>Cuerpo enviado</th></tr></thead><tbody>
+  {% for f in filas %}<tr><td>{{ f.fecha|fecha(true) }}</td><td><span class="metodo {{ f.metodo }}">{{ f.metodo }}</span></td><td><code>{{ f.ruta }}</code></td>
+    <td><span class="etq {{ 'etq-al_dia' if f.estado < 300 else 'etq-deudora' }}">{{ f.estado }}</span></td><td><small>{{ f.resumen }}</small></td></tr>
+  {% else %}<tr><td colspan="5" class="vacio">Todavía no ha llegado ninguna llamada.</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+{% endblock %}

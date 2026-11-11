@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+{% block titulo %}Escritorio{% endblock %}
+{% block contenido %}
+<div class="saludo">
+  <div>
+    <h1>{{ saludo }} {{ yo.nombre.split()[0] }} &#127881;</h1>
+    <p>espero que tengas un muy buen &#128526; día</p>
+  </div>
+  <div class="mascota">&#11088;&#9889;</div>
+</div>
+
+<div class="tarjeta">
+  <h2>Buscar Empresa</h2>
+  <p class="sub">Ingrese el nombre o el CIF de la empresa que desea buscar:</p>
+  <form class="buscador" action="{{ url_for('buscar_empresas') }}">
+    <input name="q" placeholder="Buscar empresa..." autocomplete="off">
+    <button class="btn btn-azul">Buscar</button>
+  </form>
+</div>
+
+<div class="tarjeta">
+  <h2>Buscar Caso</h2>
+  <p class="sub">Ingrese el Asunto o el número de Caso que desea buscar</p>
+  <form class="buscador" action="{{ url_for('lista_casos') }}">
+    <input name="q" placeholder="Buscar caso..." autocomplete="off">
+    <button class="btn btn-azul">&#128269; Buscar</button>
+  </form>
+</div>
+
+<div class="tarjeta">
+  <h2>Mis casos abiertos</h2>
+  <p class="sub">Últimos casos asignados a {{ yo.nombre }}</p>
+  {% for c in recientes %}
+    <div class="caso"><a class="txt" href="{{ url_for('ver_caso', caso_id=c.id) }}">
+      <span>Nº {{ c.id }}: {{ c.fecha_apertura|fecha(true) }} - {{ c.asunto }} · <b>{{ c.empresa }}</b></span>
+      <span class="punto punto-abierto"></span></a></div>
+  {% else %}
+    <p class="vacio">No tienes casos abiertos. ¡Bien!</p>
+  {% endfor %}
+</div>
+{% endblock %}

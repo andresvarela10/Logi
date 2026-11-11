@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block titulo %}{{ titulo }}{% endblock %}
+{% block contenido %}
+<div class="miga"><span>Casos /</span> {{ titulo }}</div>
+<div class="tarjeta">
+  <table>
+    <thead><tr><th>Nº</th><th>Apertura</th><th>Asunto</th><th>Empresa</th><th>Categoría</th><th>Agente</th><th>Actualizado</th><th>Estado</th></tr></thead>
+    <tbody>
+    {% for c in casos %}
+      <tr onclick="location='{{ url_for('ver_caso', caso_id=c.id) }}'" style="cursor:pointer">
+        <td><b>{{ c.id }}</b></td><td>{{ c.fecha_apertura|fecha(true) }}</td>
+        <td>{{ c.asunto }} {% if c.escalado %}<span class="etq etq-azul">Escalado</span>{% endif %}{% if c.sensible %} <span class="etq etq-deudora">Sensible</span>{% endif %}</td>
+        <td>{{ c.empresa }}</td><td>{{ c.categoria }}</td><td>{{ c.agente or 'Sin asignar' }}</td>
+        <td>{{ c.fecha_actualizacion|fecha(true) }}</td><td><span class="punto punto-{{ c.estado }}" title="{{ c.estado }}"></span></td>
+      </tr>
+    {% else %}<tr><td colspan="8" class="vacio">No hay casos en esta vista.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

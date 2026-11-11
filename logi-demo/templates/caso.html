@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block titulo %}Caso {{ c.id }}{% endblock %}
+{% block contenido %}
+<div class="miga"><span>Casos /</span> Nº {{ c.id }} · {{ c.asunto }}</div>
+<div class="dos-col">
+  <div>
+    <div class="tarjeta">
+      <div class="cab-tarjeta"><h2>{{ c.asunto }}</h2><span class="punto punto-{{ c.estado }}"></span></div>
+      <p class="sub" style="margin:6px 0 18px">
+        <a href="{{ url_for('ficha_empresa', empresa_id=c.empresa_id) }}">{{ c.empresa }}</a> · {{ c.cif }} ·
+        <span class="etq etq-{{ c.estado_pago }}">{{ ESTADOS_PAGO[c.estado_pago] }}</span><br>
+        Abierto el {{ c.fecha_apertura|fecha(true) }} por {{ c.canal }}{% if c.fecha_cierre %} · Cerrado el {{ c.fecha_cierre|fecha(true) }}{% endif %}
+      </p>
+      <p>{{ c.descripcion or 'Sin descripción.' }}</p>
+    </div>
+    <div class="tarjeta">
+      <h2>Seguimiento</h2><br>
+      {% for n in notas %}
+        <div class="nota"><small>{{ n.agente or 'Sistema' }} · {{ n.fecha|fecha(true) }}</small><br>{{ n.texto }}</div>
+      {% else %}<p class="vacio">Sin notas todavía.</p>{% endfor %}
+      <form method="post" action="{{ url_for('actualizar_caso_web', caso_id=c.id) }}" style="margin-top:14px">
+        <input type="hidden" name="accion" value="nota">
+        <div class="campo"><textarea name="texto" rows="3" placeholder="Añadir nota..."></textarea></div>
+        <div class="botones-der" style="margin-top:10px"><button class="btn btn-azul btn-peq">Añadir nota</button></div>
+      </form>
+    </div>
+  </div>
+  <form class="tarjeta" method="post" action="{{ url_for('actualizar_caso_web', caso_id=c.id) }}" style="align-self:start">
+    <h2>Detalles</h2><br>
+    <div class="campo"><label>Agente:</label><select name="agente_id"><option value="">Sin asignar</option>{% for a in agentes %}<option value="{{ a.id }}" {{ 'selected' if a.id == c.agente_id }}>{{ a.nombre }}</option>{% endfor %}</select></div><br>
+    <div class="campo"><label>Categoría:</label><select name="categoria">{% for k in CATEGORIAS %}<option {{ 'selected' if k == c.categoria }}>{{ k }}</option>{% endfor %}</select></div><br>
+    <label><input type="checkbox" name="escalado" {{ 'checked' if c.escalado }}> Escalado a desarrollo</label><br><br>
+    <label><input type="checkbox" name="sensible" {{ 'checked' if c.sensible }}> Sensible</label><br><br>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-azul btn-peq" name="accion" value="guardar">Guardar</button>
+      {% if not c.agente_id %}<button class="btn btn-amarillo btn-peq" name="accion" value="asignarme">Asignármelo</button>{% endif %}
+      {% if c.estado == 'abierto' %}<button class="btn btn-rojo btn-peq" name="accion" value="cerrar">Cerrar caso</button>
+      {% else %}<button class="btn btn-verde btn-peq" name="accion" value="reabrir">Reabrir</button>{% endif %}
+    </div>
+  </form>
+</div>
+{% endblock %}
