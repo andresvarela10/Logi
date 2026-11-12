@@ -19,7 +19,28 @@ from flask import (Flask, abort, flash, g, jsonify, redirect, render_template,
 
 import seed
 
-app = Flask(__name__)
+from flask import send_from_directory
+from jinja2 import ChoiceLoader, FileSystemLoader
+
+BASE = os.path.dirname(os.path.abspath(__file__))
+
+# Funciona tanto con las plantillas en carpetas (templates/, static/) como con
+# todos los archivos sueltos en la misma carpeta (más fácil de subir a GitHub).
+app = Flask(__name__, static_folder=None)
+app.jinja_loader = ChoiceLoader([FileSystemLoader(os.path.join(BASE, "templates")), FileSystemLoader(BASE)])
+
+
+def servir_estatico(filename):
+    # Solo se sirven hojas de estilo / scripts / imágenes; nunca el código ni la base de datos
+    if not filename.lower().endswith((".css", ".js", ".png", ".jpg", ".svg", ".ico")) or "/" in filename:
+        abort(404)
+    for carpeta in (os.path.join(BASE, "static"), BASE):
+        if os.path.exists(os.path.join(carpeta, filename)):
+            return send_from_directory(carpeta, filename)
+    abort(404)
+
+
+app.add_url_rule("/static/<path:filename>", endpoint="static", view_func=servir_estatico)
 app.json.ensure_ascii = False  # tildes legibles en las respuestas JSON
 app.secret_key =os.environ.get("LOGI_SECRET", "logi-demo-secret")
 API_KEY = os.environ.get("LOGI_API_KEY", "demo-1234")
@@ -544,6 +565,30 @@ def api_deudoras():
     return {"total": len(filas), "deudoras": [dict(f) for f in filas]}
 
 
+def leer_lista_cifs(valor):
+    """
+    Acepta los CIFs en el formato que sea más cómodo desde Make:
+      - texto separado por comas, punto y coma o saltos de línea: "B123,B456"
+      - lista de textos: ["B123", "B456"]
+      - lista de objetos (Array aggregator): [{"CIF": "B123"}, {"CIF": "B456"}]
+    """
+    if valor is None:
+        return []
+    if isinstance(valor, str):
+        return [p for p in re.split(r"[,;\s]+", valor) if p]
+    salida = []
+    for item in valor:
+        if isinstance(item, dict):
+            clave = next((k for k in item if str(k).strip().lower() == "cif"), None)
+            if clave is None and len(item) == 1:
+                clave = next(iter(item))
+            if clave is not None and item[clave]:
+                salida.append(str(item[clave]))
+        elif item:
+            salida.append(str(item))
+    return salida
+
+
 @app.route("/api/deudoras/sincronizar", methods=["POST"])
 @api
 def api_sincronizar_deudoras():
@@ -555,7 +600,7 @@ def api_sincronizar_deudoras():
     Con simular=true solo devuelve lo que haría, sin cambiar nada.
     """
     d = request.get_json(force=True)
-    cifs = {normalizar_cif(c) for c in d.get("cifs", []) if normalizar_cif(c)}
+    cifs = {normalizar_cif(c) for c in leer_lista_cifs(d.get("cifs", [])) if normalizar_cif(c)}
     respetar = bool(d.get("respetar_manuales", True))
     simular = bool(d.get("simular", False))
     auto = agente_automatizacion_id()
@@ -741,3 +786,4 @@ def no_encontrado(_e):
 if __name__ == "__main__":
     seed.asegurar_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
+
