@@ -41,6 +41,8 @@ def servir_estatico(filename):
 
 
 app.add_url_rule("/static/<path:filename>", endpoint="static", view_func=servir_estatico)
+from werkzeug.middleware.proxy_fix import ProxyFix
+app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)  # enlaces https correctos en Render
 app.json.ensure_ascii = False  # tildes legibles en las respuestas JSON
 app.secret_key =os.environ.get("LOGI_SECRET", "logi-demo-secret")
 API_KEY = os.environ.get("LOGI_API_KEY", "demo-1234")
@@ -51,7 +53,7 @@ ESTADOS_RESENA = {"no_solicitada": "No solicitada", "solicitada": "Solicitada",
                   "realizada": "Realizada", "rechazada": "Rechazada"}
 ESTADOS_CLIENTE = {"activo": "Activo", "baja_solicitada": "Baja solicitada", "baja": "Baja"}
 CATEGORIAS = ["Alta empresa", "Alta trabajador", "Baja trabajador", "Solicitud de baja",
-              "Error de fichaje", "Facturación", "Formación", "Incidencia", "Consulta"]
+              "Error de fichaje", "Facturación", "Formación", "Incidencia", "Consulta", "Fin de contrato"]
 CANALES = ["Teléfono", "Email", "WhatsApp", "Chat"]
 FORMAS_PAGO = ["TRANSFERENCIA", "DOMICILIACION", "TARJETA"]
 
@@ -69,7 +71,23 @@ def db() -> sqlite3.Connection:
         g.db = sqlite3.connect(DB_PATH)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
+        migrar(g.db)
     return g.db
+
+
+def migrar(conn):
+    """Añade columnas nuevas a bases de datos ya creadas (p. ej. la que está en Render)."""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(empresas)")}
+    if "aviso_fin_contrato_enviado" not in cols:
+        conn.execute("ALTER TABLE empresas ADD COLUMN aviso_fin_contrato_enviado TEXT")
+        conn.commit()
+
+
+def rearmar_aviso_si_cambia_fin(empresa_id, nueva_fecha):
+    """Si se renueva el contrato (cambia la fecha fin), el aviso vuelve a quedar pendiente."""
+    actual = db().execute("SELECT fecha_fin_contrato FROM empresas WHERE id = ?", (empresa_id,)).fetchone()
+    if actual is not None and (actual["fecha_fin_contrato"] or None) != (nueva_fecha or None):
+        db().execute("UPDATE empresas SET aviso_fin_contrato_enviado = NULL WHERE id = ?", (empresa_id,))
 
 
 @app.teardown_appcontext
@@ -246,6 +264,8 @@ def guardar_empresa(empresa_id):
             valores[campo] = v if v != "" else None
     if valores.get("num_empleados") is None:
         valores.pop("num_empleados", None)
+    if "fecha_fin_contrato" in valores:
+        rearmar_aviso_si_cambia_fin(empresa_id, valores["fecha_fin_contrato"])
     sets = ", ".join(f"{k} = ?" for k in valores)
     db().execute(f"UPDATE empresas SET {sets}, actualizado_en = ? WHERE id = ?",
                  (*valores.values(), ahora(), empresa_id))
@@ -390,9 +410,9 @@ def informe_deudoras():
 @app.route("/informes/contratos")
 def informe_contratos():
     hoy = date.today().isoformat()
-    en90 = (date.today() + timedelta(days=90)).isoformat()
+    en6m = sumar_meses(date.today(), 6).isoformat()
     proximos = db().execute("SELECT * FROM empresas WHERE fecha_fin_contrato BETWEEN ? AND ? ORDER BY fecha_fin_contrato",
-                            (hoy, en90)).fetchall()
+                            (hoy, en6m)).fetchall()
     vencidos = db().execute("SELECT * FROM empresas WHERE fecha_fin_contrato < ? ORDER BY fecha_fin_contrato DESC",
                             (hoy,)).fetchall()
     sin_fecha = db().execute("SELECT * FROM empresas WHERE fecha_fin_contrato IS NULL ORDER BY nombre").fetchall()
@@ -528,6 +548,8 @@ def api_editar_empresa(cif):
     campos = {k: d[k] for k in CAMPOS_EDITABLES if k in d}
     if not campos:
         raise ValueError(f"ningún campo editable. Permitidos: {', '.join(CAMPOS_EDITABLES)}")
+    if "fecha_fin_contrato" in campos:
+        rearmar_aviso_si_cambia_fin(e["id"], campos["fecha_fin_contrato"])
     db().execute(f"UPDATE empresas SET {', '.join(f'{k} = ?' for k in campos)}, actualizado_en = ? WHERE id = ?",
                  (*campos.values(), ahora(), e["id"]))
     db().commit()
@@ -776,6 +798,83 @@ def api_nota_caso(caso_id):
     return resp
 
 
+
+# --------------------------------------------------------------------- Avisos fin de contrato
+def sumar_meses(d: date, meses: int) -> date:
+    m = d.month - 1 + meses
+    a, m = d.year + m // 12, m % 12 + 1
+    import calendar
+    return date(a, m, min(d.day, calendar.monthrange(a, m)[1]))
+
+
+def texto_aviso(e, dias):
+    fin = f_fecha(e["fecha_fin_contrato"])
+    ficha = url_for("ficha_empresa", empresa_id=e["id"], _external=True)
+    meses = round(dias / 30.4, 1)
+    asunto = f"Aviso: el contrato de {e['nombre']} termina el {fin}"
+    html = (
+        f"<p>Hola equipo de Soporte:</p>"
+        f"<p>Al cliente <b>{e['nombre']}</b> (CIF {e['cif']}) le quedan <b>{dias} días</b> "
+        f"(unos {str(meses).replace('.', ',')} meses) de contrato.</p>"
+        f"<ul>"
+        f"<li><b>Fecha fin de contrato:</b> {fin}</li>"
+        f"<li><b>Gerente:</b> {e['gerente'] or '-'} · {e['email'] or '-'} · {e['telefono'] or '-'}</li>"
+        f"<li><b>Agente de venta:</b> {e['agente_venta'] or '-'}</li>"
+        f"<li><b>Empleados:</b> {e['num_empleados']}</li>"
+        f"<li><b>Estado de pago:</b> {ESTADOS_PAGO[e['estado_pago']]}</li>"
+        f"</ul>"
+        f"<p>Es un buen momento para contactar con el cliente y hablar de la renovación.</p>"
+        f"<p><a href=\"{ficha}\">Abrir la ficha del cliente</a></p>"
+        f"<p style=\"color:#888;font-size:12px\">Aviso automático · LOGI DEMO (entorno de pruebas con datos ficticios)</p>"
+    )
+    return asunto, html
+
+
+@app.route("/api/avisos/fin-contrato")
+@api
+def api_avisos_fin_contrato():
+    """
+    Empresas activas a las que les quedan <= N meses de contrato (por defecto 6)
+    y a las que todavía no se ha enviado el aviso. Incluye asunto y cuerpo HTML listos para el correo.
+    """
+    meses = int(request.args.get("meses", 6))
+    hoy = date.today()
+    limite = sumar_meses(hoy, meses)
+    filas = db().execute(
+        "SELECT e.*, a.nombre AS agente_venta FROM empresas e LEFT JOIN agentes a ON a.id = e.agente_venta_id "
+        "WHERE e.fecha_fin_contrato IS NOT NULL AND e.fecha_fin_contrato >= ? AND e.fecha_fin_contrato <= ? "
+        "AND e.estado_cliente != 'baja' AND e.aviso_fin_contrato_enviado IS NULL ORDER BY e.fecha_fin_contrato",
+        (hoy.isoformat(), limite.isoformat())).fetchall()
+    avisos = []
+    for e in filas:
+        dias = (date.fromisoformat(e["fecha_fin_contrato"]) - hoy).days
+        asunto, html = texto_aviso(e, dias)
+        avisos.append({"cif": e["cif"], "nombre": e["nombre"], "fecha_fin_contrato": e["fecha_fin_contrato"],
+                       "fecha_fin_texto": f_fecha(e["fecha_fin_contrato"]), "dias_restantes": dias,
+                       "gerente": e["gerente"], "email_cliente": e["email"], "agente_venta": e["agente_venta"],
+                       "url_ficha": url_for("ficha_empresa", empresa_id=e["id"], _external=True),
+                       "asunto": asunto, "cuerpo_html": html})
+    return {"meses": meses, "hasta": limite.isoformat(), "total": len(avisos), "avisos": avisos}
+
+
+@app.route("/api/avisos/fin-contrato/<cif>/enviado", methods=["POST"])
+@api
+def api_aviso_enviado(cif):
+    """Marca el aviso como enviado (para no repetirlo) y deja un caso en la ficha del cliente."""
+    e = requiere_empresa(cif)
+    if e["aviso_fin_contrato_enviado"]:
+        return {"cif": e["cif"], "ya_enviado": e["aviso_fin_contrato_enviado"], "caso": None}
+    d = request.get_json(silent=True) or {}
+    db().execute("UPDATE empresas SET aviso_fin_contrato_enviado = ? WHERE id = ?", (ahora(), e["id"]))
+    db().commit()
+    dias = (date.fromisoformat(e["fecha_fin_contrato"]) - date.today()).days if e["fecha_fin_contrato"] else None
+    num = crear_caso(e["id"], "AVISO FIN DE CONTRATO - CONTACTAR PARA RENOVACIÓN", "Fin de contrato",
+                     f"Aviso automático: al cliente le quedan {dias} días de contrato "
+                     f"(fin el {f_fecha(e['fecha_fin_contrato'])}). Se ha enviado un correo a "
+                     f"{d.get('enviado_a') or 'Soporte'}.", "Email", agente_automatizacion_id())
+    return {"cif": e["cif"], "enviado": True, "caso": num}
+
+
 @app.errorhandler(404)
 def no_encontrado(_e):
     if request.path.startswith("/api/"):
@@ -786,4 +885,3 @@ def no_encontrado(_e):
 if __name__ == "__main__":
     seed.asegurar_db()
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)), debug=True)
-

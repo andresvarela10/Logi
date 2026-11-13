@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS empresas (
     forma_pago                TEXT    NOT NULL DEFAULT 'TRANSFERENCIA', -- TRANSFERENCIA | DOMICILIACION | TARJETA
     fondos_europeos           TEXT    NOT NULL DEFAULT 'No tiene',      -- No tiene | Kit Digital | ...
     fecha_fin_contrato        TEXT,                         -- NULL = "No consta" (nunca 01/01/1970)
+    aviso_fin_contrato_enviado TEXT,                        -- cuándo se avisó de que quedan <= 6 meses
     -- Facturación
     ultima_factura_fecha      TEXT,
     ultima_factura_importe    REAL,
