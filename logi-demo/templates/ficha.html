@@ -7,6 +7,7 @@
   <div class="cab-tarjeta">
     <h2>Datos de empresa</h2>
     {% if not e.fecha_fin_contrato %}<span class="aviso">&#9888; No consta fecha fin de contrato &#9888;</span>{% endif %}
+    {% if e.aviso_fin_contrato_enviado %}<span class="aviso">&#9993; Aviso de fin de contrato enviado el {{ e.aviso_fin_contrato_enviado|fecha(true) }}</span>{% endif %}
     {% if e.estado_cliente != 'activo' %}<span class="etq etq-amarilla">{{ ESTADOS_CLIENTE[e.estado_cliente] }}</span>{% endif %}
   </div>
   <br>

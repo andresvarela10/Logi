@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% block titulo %}Fin de contrato{% endblock %}
 {% macro tabla(filas, vacio) %}
-<table><thead><tr><th>Empresa</th><th>CIF</th><th>Fecha alta</th><th>Fin contrato</th><th>Estado pago</th><th></th></tr></thead><tbody>
-{% for e in filas %}<tr><td>{{ e.nombre }}</td><td>{{ e.cif }}</td><td>{{ e.fecha_alta|fecha }}</td><td>{{ e.fecha_fin_contrato|fecha }}</td>
+<table><thead><tr><th>Empresa</th><th>CIF</th><th>Fecha alta</th><th>Fin contrato</th><th>Aviso enviado</th><th>Estado pago</th><th></th></tr></thead><tbody>
+{% for e in filas %}<tr><td>{{ e.nombre }}</td><td>{{ e.cif }}</td><td>{{ e.fecha_alta|fecha }}</td><td>{{ e.fecha_fin_contrato|fecha }}</td><td>{{ e.aviso_fin_contrato_enviado|fecha(true) }}</td>
 <td><span class="etq etq-{{ e.estado_pago }}">{{ ESTADOS_PAGO[e.estado_pago] }}</span></td>
 <td><a href="{{ url_for('ficha_empresa', empresa_id=e.id) }}" style="color:var(--amarillo)">&#128065;</a></td></tr>
-{% else %}<tr><td colspan="6" class="vacio">{{ vacio }}</td></tr>{% endfor %}</tbody></table>
+{% else %}<tr><td colspan="7" class="vacio">{{ vacio }}</td></tr>{% endfor %}</tbody></table>
 {% endmacro %}
 {% block contenido %}
 <div class="miga"><span>Informes /</span> Fin de contrato / permanencia</div>
-<div class="tarjeta"><h2>Vencen en los próximos 90 días ({{ proximos|length }})</h2><br>{{ tabla(proximos, 'Ningún contrato vence pronto.') }}</div>
+<div class="tarjeta"><h2>Vencen en los próximos 6 meses ({{ proximos|length }})</h2><br>{{ tabla(proximos, 'Ningún contrato vence pronto.') }}</div>
 <div class="tarjeta"><h2>Sin fecha de fin de contrato ({{ sin_fecha|length }})</h2><br>{{ tabla(sin_fecha, 'Todas tienen fecha.') }}</div>
 <div class="tarjeta"><h2>Ya vencidos ({{ vencidos|length }})</h2><br>{{ tabla(vencidos, 'Ninguno.') }}</div>
 {% endblock %}

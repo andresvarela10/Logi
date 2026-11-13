@@ -21,6 +21,10 @@
       <tr><td><span class="metodo GET">GET</span></td><td><code>/api/empresas/{cif}/historial-pago</code></td><td>Histórico de estado de pago</td></tr>
       <tr><td><span class="metodo GET">GET</span></td><td><code>/api/deudoras</code></td><td>Lista de empresas deudoras ahora</td></tr>
       <tr><td><span class="metodo POST">POST</span></td><td><code>/api/deudoras/sincronizar</code></td><td><b>Sincroniza con el Excel de deudores</b> (lista completa de CIFs)</td></tr>
+      <tr><td><span class="metodo GET">GET</span></td><td><code>/api/avisos/fin-contrato?meses=6</code></td><td>Empresas con &le; 6 meses de contrato y aviso pendiente (con asunto y cuerpo del correo)</td></tr>
+      <tr><td><span class="metodo POST">POST</span></td><td><code>/api/avisos/fin-contrato/{cif}/enviado</code></td><td>Marca el aviso como enviado y crea un caso en la ficha</td></tr>
+      <tr><td><span class="metodo GET">GET</span></td><td><code>/api/avisos/fin-contrato?meses=6</code></td><td>Empresas con 6 meses o menos de contrato y aviso pendiente (incluye asunto y cuerpo del correo)</td></tr>
+      <tr><td><span class="metodo POST">POST</span></td><td><code>/api/avisos/fin-contrato/{cif}/enviado</code></td><td>Marca el aviso como enviado y crea un caso en la ficha</td></tr>
       <tr><td><span class="metodo GET">GET</span></td><td><code>/api/empresas/{cif}/trabajadores</code></td><td>Trabajadores de la empresa</td></tr>
       <tr><td><span class="metodo POST">POST</span></td><td><code>/api/empresas/{cif}/trabajadores</code></td><td>Alta de trabajador</td></tr>
       <tr><td><span class="metodo POST">POST</span></td><td><code>/api/trabajadores/{id}/baja</code></td><td>Baja de trabajador</td></tr>
