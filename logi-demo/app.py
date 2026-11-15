@@ -81,6 +81,11 @@ def migrar(conn):
     if "aviso_fin_contrato_enviado" not in cols:
         conn.execute("ALTER TABLE empresas ADD COLUMN aviso_fin_contrato_enviado TEXT")
         conn.commit()
+    if "importe_deuda" not in cols:
+        conn.execute("ALTER TABLE empresas ADD COLUMN importe_deuda REAL")
+        # punto de partida: las deudoras actuales deben su última factura (la sincronización lo sustituye por el importe del Excel)
+        conn.execute("UPDATE empresas SET importe_deuda = ultima_factura_importe WHERE estado_pago = 'deudora'")
+        conn.commit()
     conn.execute("CREATE TABLE IF NOT EXISTS meta (clave TEXT PRIMARY KEY, valor TEXT)")
     if conn.execute("SELECT 1 FROM meta WHERE clave = 'demo_dashboard_v1'").fetchone() is None:
         enriquecer_demo(conn)
@@ -203,6 +208,8 @@ def cambiar_estado_pago(empresa_id: int, estado: str, agente_id: int, origen="ma
         return False
     db().execute("UPDATE empresas SET estado_pago = ?, actualizado_en = ? WHERE id = ?",
                  (estado, ahora(), empresa_id))
+    if estado == "al_dia":
+        db().execute("UPDATE empresas SET importe_deuda = NULL WHERE id = ?", (empresa_id,))
     db().execute("INSERT INTO historial_pago (empresa_id, fecha, estado, agente_id, origen, nota) "
                  "VALUES (?,?,?,?,?,?)", (empresa_id, ahora(), estado, agente_id, origen, nota))
     db().commit()
@@ -359,6 +366,15 @@ def web_estado_pago(empresa_id):
     estado = request.form["estado"]
     cambiar_estado_pago(empresa_id, estado, agente_actual()["id"], "manual")
     flash(f"Empresa marcada como {ESTADOS_PAGO[estado].lower()}.")
+    return redirect(url_for("ficha_empresa", empresa_id=empresa_id))
+
+
+@app.route("/empresas/<int:empresa_id>/importe-deuda", methods=["POST"])
+def guardar_importe_deuda(empresa_id):
+    db().execute("UPDATE empresas SET importe_deuda = ? WHERE id = ?",
+                 (leer_importe(request.form.get("importe_deuda")), empresa_id))
+    db().commit()
+    flash("Importe adeudado guardado.")
     return redirect(url_for("ficha_empresa", empresa_id=empresa_id))
 
 
@@ -646,6 +662,9 @@ def api_estado_pago(cif):
         raise ValueError(f"agente '{d.get('agente')}' no existe")
     cambiado = cambiar_estado_pago(e["id"], d["estado"], agente["id"],
                                    "automatizacion" if agente["rol"] == "sistema" else "manual", d.get("nota"))
+    if d["estado"] == "deudora" and d.get("importe") not in (None, ""):
+        db().execute("UPDATE empresas SET importe_deuda = ? WHERE id = ?", (leer_importe(d["importe"]), e["id"]))
+        db().commit()
     return {"cif": e["cif"], "estado_pago": d["estado"], "cambiado": cambiado}
 
 
@@ -665,6 +684,50 @@ def api_deudoras():
     filas = db().execute("SELECT nombre, cif, ultima_factura_fecha, ultima_factura_importe FROM empresas "
                          "WHERE estado_pago='deudora' ORDER BY nombre").fetchall()
     return {"total": len(filas), "deudoras": [dict(f) for f in filas]}
+
+
+def leer_importe(v):
+    """Convierte 1.234,56 / 1234.56 / "36,25 €" / 36.25 en número. Devuelve None si no se puede."""
+    if v is None or v == "":
+        return None
+    if isinstance(v, (int, float)):
+        return round(float(v), 2)
+    t = re.sub(r"[^\d,.\-]", "", str(v))
+    if "," in t and "." in t:
+        t = t.replace(".", "").replace(",", ".") if t.rfind(",") > t.rfind(".") else t.replace(",", "")
+    elif "," in t:
+        t = t.replace(",", ".")
+    try:
+        return round(float(t), 2)
+    except ValueError:
+        return None
+
+
+def leer_deudores(valor):
+    """
+    Devuelve {cif: importe o None}. Además de los formatos de leer_lista_cifs acepta importes:
+      - texto "CIF:importe" separado por punto y coma o saltos de línea: "B123:150,50;B456:89"
+      - lista de objetos: [{"cif": "B123", "importe": 150.5}]
+    """
+    salida = {}
+    if isinstance(valor, str) and ":" in valor:
+        for trozo in re.split(r"[;\n]+", valor):
+            if not trozo.strip():
+                continue
+            cif, _, imp = trozo.partition(":")
+            if normalizar_cif(cif):
+                salida[normalizar_cif(cif)] = leer_importe(imp)
+        return salida
+    if isinstance(valor, list):
+        for item in valor:
+            if isinstance(item, dict):
+                kc = next((k for k in item if str(k).strip().lower() == "cif"), None)
+                ki = next((k for k in item if "importe" in str(k).lower()), None)
+                if kc and normalizar_cif(str(item[kc])):
+                    salida[normalizar_cif(str(item[kc]))] = leer_importe(item[ki]) if ki else None
+        if salida:
+            return salida
+    return {normalizar_cif(c): None for c in leer_lista_cifs(valor) if normalizar_cif(c)}
 
 
 def leer_lista_cifs(valor):
@@ -702,7 +765,8 @@ def api_sincronizar_deudoras():
     Con simular=true solo devuelve lo que haría, sin cambiar nada.
     """
     d = request.get_json(force=True)
-    cifs = {normalizar_cif(c) for c in leer_lista_cifs(d.get("cifs", [])) if normalizar_cif(c)}
+    importes = leer_deudores(d.get("cifs", []))
+    cifs = set(importes)
     respetar = bool(d.get("respetar_manuales", True))
     simular = bool(d.get("simular", False))
     auto = agente_automatizacion_id()
@@ -716,9 +780,12 @@ def api_sincronizar_deudoras():
         elif e["estado_pago"] == "deudora":
             res["ya_deudoras"].append(cif)
         else:
-            res["marcadas_deudoras"].append({"cif": cif, "nombre": e["nombre"]})
+            res["marcadas_deudoras"].append({"cif": cif, "nombre": e["nombre"], "importe": importes[cif]})
             if not simular:
                 cambiar_estado_pago(e["id"], "deudora", auto, "automatizacion", "Sincronización con Excel de deudores")
+        if e is not None and importes[cif] is not None and not simular:
+            db().execute("UPDATE empresas SET importe_deuda = ? WHERE id = ?", (importes[cif], e["id"]))
+            db().commit()
 
     for e in db().execute("SELECT * FROM empresas WHERE estado_pago='deudora'").fetchall():
         if e["cif"] in cifs:
@@ -733,6 +800,7 @@ def api_sincronizar_deudoras():
             cambiar_estado_pago(e["id"], "al_dia", auto, "automatizacion", "Ya no figura en el Excel de deudores")
 
     res["simulacion"] = simular
+    res["importe_total_excel"] = round(sum(v for v in importes.values() if v is not None), 2)
     res["resumen"] = (f"{len(res['marcadas_deudoras'])} marcadas deudoras, {len(res['marcadas_al_dia'])} pasadas a al día, "
                       f"{len(res['conservadas_manuales'])} manuales conservadas, {len(res['cif_no_encontrados'])} CIF no encontrados")
     return res
@@ -991,11 +1059,12 @@ def datos_mes(primero: date):
 
 def datos_deudores():
     filas = db().execute(
-        "SELECT e.id, e.nombre, e.cif, e.num_empleados, e.ultima_factura_importe AS importe, "
+        "SELECT e.id, e.nombre, e.cif, e.num_empleados, e.importe_deuda AS importe, "
         "(SELECT MAX(fecha) FROM historial_pago h WHERE h.empresa_id = e.id AND h.estado = 'deudora') AS desde "
-        "FROM empresas e WHERE e.estado_pago = 'deudora' ORDER BY desde DESC").fetchall()
+        "FROM empresas e WHERE e.estado_pago = 'deudora' ORDER BY e.importe_deuda DESC").fetchall()
     return {"empresas": len(filas), "trabajadores": sum(r["num_empleados"] for r in filas),
-            "importe": round(sum(r["importe"] or 0 for r in filas), 2), "detalle": [dict(r) for r in filas]}
+            "importe": round(sum(r["importe"] or 0 for r in filas), 2),
+            "sin_importe": sum(1 for r in filas if r["importe"] is None), "detalle": [dict(r) for r in filas]}
 
 
 def mes_menos(primero: date, n: int) -> date:
