@@ -12,17 +12,17 @@
     </select>
   </form>
   <table>
-    <thead><tr><th>Empresa &#9650;</th><th>CIF</th><th>Estado</th><th>Última marca deudora</th><th>Fecha última factura</th><th>Importe última factura</th><th>Acciones</th></tr></thead>
+    <thead><tr><th>Empresa &#9650;</th><th>CIF</th><th>Estado</th><th>Última marca deudora</th><th>Fecha última factura</th><th>Importe última factura</th><th>Importe adeudado</th><th>Acciones</th></tr></thead>
     <tbody>
     {% for f in filas %}
       <tr>
         <td>{{ f.nombre }}</td><td>{{ f.cif }}</td>
         <td><span class="etq etq-{{ f.estado_pago }}">{{ ESTADOS_PAGO[f.estado_pago] }}</span></td>
-        <td>{{ f.ultima_marca|fecha(true) }}</td><td>{{ f.ultima_factura_fecha|fecha }}</td><td>{{ f.ultima_factura_importe|euros }}</td>
+        <td>{{ f.ultima_marca|fecha(true) }}</td><td>{{ f.ultima_factura_fecha|fecha }}</td><td>{{ f.ultima_factura_importe|euros }}</td><td><b>{{ f.importe_deuda|euros if f.estado_pago == "deudora" else "-" }}</b></td>
         <td><a href="#" onclick="abrir('h{{ f.id }}');return false" title="Histórico">&#128340;</a> &nbsp;
             <a href="{{ url_for('ficha_empresa', empresa_id=f.id) }}" style="color:var(--amarillo)" title="Ficha">&#128065;</a></td>
       </tr>
-    {% else %}<tr><td colspan="7" class="vacio">No hay empresas en este filtro.</td></tr>{% endfor %}
+    {% else %}<tr><td colspan="8" class="vacio">No hay empresas en este filtro.</td></tr>{% endfor %}
     </tbody>
   </table>
 </div>

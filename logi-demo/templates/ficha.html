@@ -54,6 +54,13 @@
     <span style="color:var(--texto-suave)">Estado de pago:</span>&nbsp;
     <span class="etq etq-{{ e.estado_pago }}">{{ ESTADOS_PAGO[e.estado_pago] }}</span>
     &nbsp; <a href="#" onclick="abrir('modal-historial');return false" style="font-size:13px">Ver histórico ({{ historial|length }})</a>
+    {% if e.estado_pago == 'deudora' %}
+    <form method="post" action="{{ url_for('guardar_importe_deuda', empresa_id=e.id) }}" style="display:inline-flex;gap:8px;align-items:center;margin-left:18px">
+      <span style="color:var(--texto-suave)">Importe adeudado:</span>
+      <input name="importe_deuda" value="{{ ('%.2f'|format(e.importe_deuda)).replace('.', ',') if e.importe_deuda is not none else '' }}" placeholder="0,00" style="width:110px;padding:7px 10px;border:1px solid #d6e2e5;border-radius:5px"> €
+      <button class="btn btn-azul btn-peq">Guardar</button>
+    </form>
+    {% endif %}
   </div>
   <form method="post" action="{{ url_for('web_estado_pago', empresa_id=e.id) }}">
     {% if e.estado_pago == 'al_dia' %}

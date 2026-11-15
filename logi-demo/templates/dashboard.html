@@ -24,6 +24,8 @@
   .kpi .lbl { font-size:12.5px; color:var(--texto-suave); margin-top:6px; }
   .delta { font-size:12.5px; font-weight:600; }
   .delta.bien { color:#2e9e62; } .delta.mal { color:var(--rojo); } .delta.neutro { color:var(--texto-suave); }
+  .deuda-total { font-size:16px; color:#26323f; margin-bottom:4px; }
+  .deuda-total b { color:var(--rojo); font-size:20px; }
   .balance { font-size:15px; margin:0 0 24px; padding:14px 20px; border-radius:8px; background:#fff; box-shadow:var(--sombra); }
   .grafico { display:flex; align-items:flex-end; gap:22px; height:200px; padding:10px 6px 0; border-bottom:1px solid var(--borde); }
   .grupo { flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; }
@@ -66,7 +68,8 @@
       <div><div class="num">{{ deud.empresas }}</div><div class="lbl">empresas</div></div>
       <div><div class="num">{{ deud.trabajadores }}</div><div class="lbl">trabajadores</div></div>
     </div>
-    <span class="delta neutro">Última factura pendiente: {{ deud.importe|euros }}</span>
+    <div class="deuda-total">Total adeudado: <b>{{ deud.importe|euros }}</b></div>
+    {% if deud.sin_importe %}<span class="delta neutro">{{ deud.sin_importe }} sin importe registrado</span>{% endif %}
   </div>
   <div class="kpi ambar">
     <h3>Solicitudes de baja del mes</h3><div class="periodo">{{ d.titulo }} · casos «Solicitud de baja»</div>
@@ -107,9 +110,9 @@
   </div>
   <div class="tarjeta">
     <h2>Deudores actuales</h2><br>
-    <table><thead><tr><th>Empresa</th><th>Desde</th><th class="num">Trab.</th></tr></thead><tbody>
+    <table><thead><tr><th>Empresa</th><th class="num">Debe</th><th class="num">Trab.</th></tr></thead><tbody>
     {% for r in deud.detalle %}
-      <tr><td><a href="{{ url_for('ficha_empresa', empresa_id=r.id) }}">{{ r.nombre }}</a></td><td>{{ r.desde|fecha }}</td><td class="num">{{ r.num_empleados }}</td></tr>
+      <tr><td><a href="{{ url_for('ficha_empresa', empresa_id=r.id) }}">{{ r.nombre }}</a></td><td class="num">{{ r.importe|euros }}</td><td class="num">{{ r.num_empleados }}</td></tr>
     {% else %}<tr><td colspan="3" class="vacio">No hay deudores.</td></tr>{% endfor %}
     </tbody></table>
   </div>
