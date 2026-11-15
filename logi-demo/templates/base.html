@@ -37,6 +37,7 @@
   {% set p = request.path %}
   <nav class="nav">
     <a href="{{ url_for('escritorio') }}" class="{{ 'activo' if p == '/' }}">&#8962; Escritorio</a>
+    <a href="{{ url_for('dashboard') }}" class="{{ 'activo' if p.startswith('/dashboard') }}">&#128200; Dashboard</a>
     <a href="{{ url_for('lista_casos', vista='sin_asignar') }}" class="{{ 'activo' if request.args.get('vista') == 'sin_asignar' }}">&#128100;? Sin asignar <span class="badge">{{ cnt_sin_asignar }}</span></a>
     <details>
       <summary class="{{ 'activo' if request.args.get('vista') in ('asignados','todos_abiertos','cerrados') }}">&#9745; Asignados <span class="chev">&#9660;</span></summary>

@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block titulo %}Dashboard {{ d.titulo }}{% endblock %}
+{% macro delta(actual, anterior, bueno_si_sube=true) %}
+  {% set dif = actual - anterior %}
+  {% if dif == 0 %}<span class="delta neutro">= que el mes anterior</span>
+  {% else %}
+    {% set bien = (dif > 0) == bueno_si_sube %}
+    <span class="delta {{ 'bien' if bien else 'mal' }}">{{ '▲' if dif > 0 else '▼' }} {{ dif|abs }} vs mes anterior</span>
+  {% endif %}
+{% endmacro %}
+{% block contenido %}
+<style>
+  .dash-cab { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px; margin-bottom:22px; }
+  .dash-cab .miga { margin:0; }
+  .nav-mes { display:flex; gap:8px; align-items:center; }
+  .nav-mes a { background:#fff; border:1px solid var(--borde); border-radius:6px; padding:8px 14px; font-weight:600; }
+  .kpis { display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; margin-bottom:24px; }
+  .kpi { background:var(--tarjeta); border-radius:10px; box-shadow:var(--sombra); padding:22px 24px; border-top:5px solid; }
+  .kpi.verde { border-color:#2e9e62; } .kpi.rojo { border-color:var(--rojo); } .kpi.ambar { border-color:#e0a100; }
+  .kpi h3 { margin:0 0 4px; font-size:15px; font-weight:600; color:var(--titulo); }
+  .kpi .periodo { font-size:12.5px; color:var(--texto-suave); }
+  .kpi .cifras { display:flex; gap:26px; margin:16px 0 10px; }
+  .kpi .num { font-size:38px; font-weight:800; line-height:1; color:#26323f; }
+  .kpi .lbl { font-size:12.5px; color:var(--texto-suave); margin-top:6px; }
+  .delta { font-size:12.5px; font-weight:600; }
+  .delta.bien { color:#2e9e62; } .delta.mal { color:var(--rojo); } .delta.neutro { color:var(--texto-suave); }
+  .balance { font-size:15px; margin:0 0 24px; padding:14px 20px; border-radius:8px; background:#fff; box-shadow:var(--sombra); }
+  .grafico { display:flex; align-items:flex-end; gap:22px; height:200px; padding:10px 6px 0; border-bottom:1px solid var(--borde); }
+  .grupo { flex:1; display:flex; flex-direction:column; align-items:center; height:100%; justify-content:flex-end; }
+  .barras { display:flex; gap:6px; align-items:flex-end; height:100%; }
+  .barra { width:26px; border-radius:4px 4px 0 0; position:relative; min-height:2px; }
+  .barra span { position:absolute; top:-18px; left:50%; transform:translateX(-50%); font-size:11px; font-weight:700; color:#555; }
+  .barra.imp { background:#2e9e62; } .barra.baj { background:#e0a100; }
+  .meses-eje { display:flex; gap:22px; padding:8px 6px 0; }
+  .meses-eje div { flex:1; text-align:center; font-size:12px; color:var(--texto-suave); }
+  .meses-eje div.sel { color:var(--azul); font-weight:700; }
+  .leyenda { display:flex; gap:18px; font-size:12.5px; margin-top:12px; }
+  .leyenda i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  .tres { display:grid; grid-template-columns:repeat(3, 1fr); gap:20px; }
+  .tres .tarjeta { padding:20px 22px; }
+  .tres td, .tres th { padding:9px 6px; font-size:13px; }
+  @media (max-width: 1000px) { .kpis, .tres { grid-template-columns:1fr; } }
+</style>
+
+<div class="dash-cab">
+  <div class="miga"><span>Dashboard /</span> {{ d.titulo }}</div>
+  <div class="nav-mes">
+    <a href="{{ url_for('dashboard', mes=mes_prev) }}">&#8249; Mes anterior</a>
+    {% if not es_actual %}<a href="{{ url_for('dashboard') }}">Mes actual</a>
+    <a href="{{ url_for('dashboard', mes=mes_sig) }}">Mes siguiente &#8250;</a>{% endif %}
+  </div>
+</div>
+
+<div class="kpis">
+  <div class="kpi verde">
+    <h3>Implementaciones del mes</h3><div class="periodo">{{ d.titulo }} · fecha de implementación gerente</div>
+    <div class="cifras">
+      <div><div class="num">{{ d.implementaciones.empresas }}</div><div class="lbl">empresas</div></div>
+      <div><div class="num">{{ d.implementaciones.trabajadores }}</div><div class="lbl">trabajadores</div></div>
+    </div>
+    {{ delta(d.implementaciones.trabajadores, ant.implementaciones.trabajadores, true) }}
+  </div>
+  <div class="kpi rojo">
+    <h3>Deudores actuales</h3><div class="periodo">Situación a día de hoy</div>
+    <div class="cifras">
+      <div><div class="num">{{ deud.empresas }}</div><div class="lbl">empresas</div></div>
+      <div><div class="num">{{ deud.trabajadores }}</div><div class="lbl">trabajadores</div></div>
+    </div>
+    <span class="delta neutro">Última factura pendiente: {{ deud.importe|euros }}</span>
+  </div>
+  <div class="kpi ambar">
+    <h3>Solicitudes de baja del mes</h3><div class="periodo">{{ d.titulo }} · casos «Solicitud de baja»</div>
+    <div class="cifras">
+      <div><div class="num">{{ d.bajas.empresas }}</div><div class="lbl">empresas</div></div>
+      <div><div class="num">{{ d.bajas.trabajadores }}</div><div class="lbl">trabajadores</div></div>
+    </div>
+    {{ delta(d.bajas.trabajadores, ant.bajas.trabajadores, false) }}
+  </div>
+</div>
+
+{% set neto = d.implementaciones.trabajadores - d.bajas.trabajadores %}
+<div class="balance">Balance de {{ d.titulo|lower }}: <b style="color:{{ '#2e9e62' if neto >= 0 else 'var(--rojo)' }}">{{ '+' if neto > 0 }}{{ neto }} trabajadores</b>
+  ({{ d.implementaciones.trabajadores }} implementados − {{ d.bajas.trabajadores }} en empresas que piden la baja)</div>
+
+<div class="tarjeta">
+  <h2>Evolución de los últimos 6 meses (trabajadores)</h2><br>
+  <div class="grafico">
+    {% for h in historico %}
+      <div class="grupo"><div class="barras">
+        <div class="barra imp" style="height:{{ (h.implementaciones.trabajadores / maximo * 160)|round|int }}px"><span>{{ h.implementaciones.trabajadores }}</span></div>
+        <div class="barra baj" style="height:{{ (h.bajas.trabajadores / maximo * 160)|round|int }}px"><span>{{ h.bajas.trabajadores }}</span></div>
+      </div></div>
+    {% endfor %}
+  </div>
+  <div class="meses-eje">{% for h in historico %}<div class="{{ 'sel' if h.mes == d.mes }}"><a href="{{ url_for('dashboard', mes=h.mes) }}" style="color:inherit">{{ h.titulo }}</a></div>{% endfor %}</div>
+  <div class="leyenda"><span><i style="background:#2e9e62"></i>Trabajadores implementados</span><span><i style="background:#e0a100"></i>Trabajadores en solicitudes de baja</span></div>
+</div>
+
+<div class="tres">
+  <div class="tarjeta">
+    <h2>Implementaciones · {{ d.titulo }}</h2><br>
+    <table><thead><tr><th>Empresa</th><th>Fecha</th><th class="num">Trab.</th></tr></thead><tbody>
+    {% for r in d.implementaciones.detalle %}
+      <tr><td><a href="{{ url_for('ficha_empresa', empresa_id=r.id) }}">{{ r.nombre }}</a></td><td>{{ r.fecha|fecha }}</td><td class="num">{{ r.num_empleados }}</td></tr>
+    {% else %}<tr><td colspan="3" class="vacio">Sin implementaciones este mes.</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="tarjeta">
+    <h2>Deudores actuales</h2><br>
+    <table><thead><tr><th>Empresa</th><th>Desde</th><th class="num">Trab.</th></tr></thead><tbody>
+    {% for r in deud.detalle %}
+      <tr><td><a href="{{ url_for('ficha_empresa', empresa_id=r.id) }}">{{ r.nombre }}</a></td><td>{{ r.desde|fecha }}</td><td class="num">{{ r.num_empleados }}</td></tr>
+    {% else %}<tr><td colspan="3" class="vacio">No hay deudores.</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+  <div class="tarjeta">
+    <h2>Solicitudes de baja · {{ d.titulo }}</h2><br>
+    <table><thead><tr><th>Empresa</th><th>Fecha</th><th class="num">Trab.</th></tr></thead><tbody>
+    {% for r in d.bajas.detalle %}
+      <tr><td><a href="{{ url_for('ver_caso', caso_id=r.caso) }}">{{ r.nombre }}</a></td><td>{{ r.fecha|fecha }}</td><td class="num">{{ r.num_empleados }}</td></tr>
+    {% else %}<tr><td colspan="3" class="vacio">Sin solicitudes de baja este mes.</td></tr>{% endfor %}
+    </tbody></table>
+  </div>
+</div>
+{% endblock %}
