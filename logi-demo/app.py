@@ -81,6 +81,81 @@ def migrar(conn):
     if "aviso_fin_contrato_enviado" not in cols:
         conn.execute("ALTER TABLE empresas ADD COLUMN aviso_fin_contrato_enviado TEXT")
         conn.commit()
+    conn.execute("CREATE TABLE IF NOT EXISTS meta (clave TEXT PRIMARY KEY, valor TEXT)")
+    if conn.execute("SELECT 1 FROM meta WHERE clave = 'demo_dashboard_v1'").fetchone() is None:
+        enriquecer_demo(conn)
+        conn.execute("INSERT INTO meta (clave, valor) VALUES ('demo_dashboard_v1', ?)", (ahora(),))
+        conn.commit()
+
+
+def enriquecer_demo(conn):
+    """
+    Añade implementaciones y solicitudes de baja de octubre y noviembre de 2026 para que el
+    dashboard tenga datos. Solo AÑADE empresas y casos nuevos: no cambia CIFs ni datos existentes.
+    """
+    import random
+    r = random.Random(1511)
+    ag = {n: i for i, n in conn.execute("SELECT id, nombre FROM agentes")}
+    soporte = [ag[n] for n in ("Andrés Varela", "Lucía Pazos", "Marcos Seoane", "Iria Fandiño", "Brais Lema")]
+    ventas = [ag[n] for n in ("Nerea Castiñeira", "Hugo Otero Blanco", "Sabela Rial")]
+    nuevas = [  # nombre, empleados, alta, impl. gerente, impl. empleados, forma de pago
+        ("Clínica Veterinaria Mariñas, S.L.", 8, "2026-10-27", "2026-11-02", "2026-11-09", "DOMICILIACION"),
+        ("Supermercados Atlántico Norte, S.A.", 42, "2026-10-28", "2026-11-03", "2026-11-10", "TRANSFERENCIA"),
+        ("Gestoría Breogán Asesores, S.L.", 6, "2026-10-29", "2026-11-04", "2026-11-11", "TARJETA"),
+        ("Hostelería Riazor, S.L.", 23, "2026-10-30", "2026-11-05", "2026-11-12", "DOMICILIACION"),
+        ("Logística Arteixo Express, S.L.", 31, "2026-11-02", "2026-11-06", "2026-11-13", "DOMICILIACION"),
+        ("Centro Deportivo Monelos, S.L.U.", 14, "2026-11-04", "2026-11-09", "2026-11-13", "TRANSFERENCIA"),
+        ("Óptica Cantón Grande, S.L.", 4, "2026-11-05", "2026-11-10", "2026-11-13", "TARJETA"),
+        ("Instalaciones Eléctricas Oleiros, S.L.", 17, "2026-09-24", "2026-10-01", "2026-10-07", "DOMICILIACION"),
+        ("Panadería Obradoiro Sada, S.L.", 9, "2026-09-29", "2026-10-06", "2026-10-15", "TRANSFERENCIA"),
+        ("Academia de Idiomas Orzán, S.L.", 12, "2026-10-05", "2026-10-08", "2026-10-22", "DOMICILIACION"),
+    ]
+    puestos = ["Administración", "Dependiente/a", "Operario/a", "Técnico/a", "Recepción", "Sala", "Almacén"]
+    nombres = ["Ana", "Xoán", "María", "Pablo", "Laura", "Diego", "Uxía", "Antón", "Noa", "Iago", "Alba", "Martín"]
+    apellidos = ["García", "López", "Castro", "Rey", "Vázquez", "Pena", "Souto", "Freire", "Lago", "Novo"]
+    num = (conn.execute("SELECT MAX(id) FROM casos").fetchone()[0] or 16000)
+    for nombre, n, alta, ig, ie, pago in nuevas:
+        if conn.execute("SELECT 1 FROM empresas WHERE nombre = ?", (nombre,)).fetchone():
+            continue
+        while True:
+            cif = seed.cif_valido("A" if nombre.endswith("S.A.") else "B", f"{r.randint(1500000, 9999999):07d}")
+            if not conn.execute("SELECT 1 FROM empresas WHERE cif = ?", (cif,)).fetchone():
+                break
+        g = f"{r.choice(nombres)} {r.choice(apellidos)} {r.choice(apellidos)}"
+        dom = seed.slug(nombre.split(",")[0].split()[-1]) + ".es"
+        fin = str(int(alta[:4]) + 1) + alta[4:]
+        cur = conn.execute(
+            "INSERT INTO empresas (nombre, cif, num_empleados, encargado, gerente, telefono, email, direccion, agente_venta_id, "
+            "fecha_alta, implementacion_gerente, implementacion_empleados, seguimiento_mes, forma_pago, fecha_fin_contrato, "
+            "fichajes_mes_actual, fichajes_mes_anterior) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (nombre, cif, n, 1 if n >= 10 else 0, g, f"981{r.randint(100000, 999999)}",
+             f"{seed.slug(g.split()[0])}.{seed.slug(g.split()[1])}@{dom}", f"Rúa Real, {r.randint(1, 120)}, A Coruña, 150{r.randint(0, 99):02d}",
+             r.choice(ventas), alta, ig, ie, None, pago, fin, n * 9, 0))
+        eid = cur.lastrowid
+        for _ in range(n):
+            t = f"{r.choice(nombres)} {r.choice(apellidos)} {r.choice(apellidos)}"
+            conn.execute("INSERT INTO trabajadores (empresa_id, nombre, puesto, fecha_alta) VALUES (?,?,?,?)",
+                         (eid, t, r.choice(puestos), ie))
+        for f, asunto, cat, desc in ((alta, "ALTA DE EMPRESA Y CONFIGURACIÓN INICIAL", "Alta empresa", "Alta de la empresa en la plataforma."),
+                                     (ie, "IMPLEMENTACIÓN COMPLETADA", "Formación", "Formación a empleados e implementación completada.")):
+            num += r.randint(2, 9)
+            a = r.choice(soporte)
+            conn.execute("INSERT INTO casos (id, empresa_id, asunto, categoria, descripcion, canal, estado, agente_id, "
+                         "fecha_apertura, fecha_actualizacion, fecha_cierre) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                         (num, eid, asunto, cat, desc, "Teléfono", "cerrado", a, f + " 10:30:00", f + " 12:00:00", f + " 12:00:00"))
+    # Solicitudes de baja en noviembre sobre empresas existentes (activas, al día, sin aviso de contrato próximo)
+    candidatas = conn.execute(
+        "SELECT id, num_empleados FROM empresas WHERE estado_cliente = 'activo' AND estado_pago = 'al_dia' "
+        "AND (fecha_fin_contrato IS NULL OR fecha_fin_contrato > '2027-06-30') AND fecha_alta < '2026-06-01' ORDER BY id").fetchall()
+    elegidas = [candidatas[i] for i in (2, 9, 17) if i < len(candidatas)]
+    for (eid, _), dia in zip(elegidas, ("2026-11-03", "2026-11-09", "2026-11-12")):
+        num += r.randint(2, 9)
+        conn.execute("INSERT INTO casos (id, empresa_id, asunto, categoria, descripcion, canal, estado, agente_id, sensible, "
+                     "fecha_apertura, fecha_actualizacion) VALUES (?,?,?,?,?,?,?,?,1,?,?)",
+                     (num, eid, "SOLICITUD DE BAJA DEL SERVICIO", "Solicitud de baja",
+                      "La empresa comunica que quiere darse de baja del servicio.", "Email", "abierto", r.choice(soporte),
+                      dia + " 11:15:00", dia + " 11:15:00"))
+        conn.execute("UPDATE empresas SET estado_cliente = 'baja_solicitada' WHERE id = ?", (eid,))
 
 
 def rearmar_aviso_si_cambia_fin(empresa_id, nueva_fecha):
@@ -266,6 +341,11 @@ def guardar_empresa(empresa_id):
         valores.pop("num_empleados", None)
     if "fecha_fin_contrato" in valores:
         rearmar_aviso_si_cambia_fin(empresa_id, valores["fecha_fin_contrato"])
+    antes = db().execute("SELECT estado_cliente FROM empresas WHERE id = ?", (empresa_id,)).fetchone()
+    if valores.get("estado_cliente") == "baja_solicitada" and antes and antes["estado_cliente"] != "baja_solicitada":
+        crear_caso(empresa_id, "SOLICITUD DE BAJA DEL SERVICIO", "Solicitud de baja",
+                   "Registrada al cambiar el estado del cliente a «Baja solicitada».", "Teléfono",
+                   agente_actual()["id"], 0, 1)
     sets = ", ".join(f"{k} = ?" for k in valores)
     db().execute(f"UPDATE empresas SET {sets}, actualizado_en = ? WHERE id = ?",
                  (*valores.values(), ahora(), empresa_id))
@@ -873,6 +953,73 @@ def api_aviso_enviado(cif):
                      f"(fin el {f_fecha(e['fecha_fin_contrato'])}). Se ha enviado un correo a "
                      f"{d.get('enviado_a') or 'Soporte'}.", "Email", agente_automatizacion_id())
     return {"cif": e["cif"], "enviado": True, "caso": num}
+
+
+# --------------------------------------------------------------------- Dashboard
+MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto",
+         "septiembre", "octubre", "noviembre", "diciembre"]
+
+
+def mes_valido(texto):
+    try:
+        a, m = map(int, (texto or "").split("-"))
+        return date(a, m, 1)
+    except ValueError:
+        return date.today().replace(day=1)
+
+
+def datos_mes(primero: date):
+    clave = primero.strftime("%Y-%m")
+    c = db()
+    impl = c.execute(
+        "SELECT e.id, e.nombre, e.cif, e.num_empleados, e.implementacion_gerente AS fecha, a.nombre AS agente_venta "
+        "FROM empresas e LEFT JOIN agentes a ON a.id = e.agente_venta_id "
+        "WHERE substr(e.implementacion_gerente, 1, 7) = ? ORDER BY e.implementacion_gerente", (clave,)).fetchall()
+    bajas = c.execute(
+        "SELECT e.id, e.nombre, e.cif, e.num_empleados, MIN(ca.fecha_apertura) AS fecha, MIN(ca.id) AS caso, e.estado_cliente "
+        "FROM casos ca JOIN empresas e ON e.id = ca.empresa_id "
+        "WHERE ca.categoria = 'Solicitud de baja' AND substr(ca.fecha_apertura, 1, 7) = ? "
+        "GROUP BY e.id ORDER BY fecha", (clave,)).fetchall()
+    return {
+        "mes": clave, "titulo": f"{MESES[primero.month - 1].capitalize()} {primero.year}",
+        "implementaciones": {"empresas": len(impl), "trabajadores": sum(r["num_empleados"] for r in impl),
+                             "detalle": [dict(r) for r in impl]},
+        "bajas": {"empresas": len(bajas), "trabajadores": sum(r["num_empleados"] for r in bajas),
+                  "detalle": [dict(r) for r in bajas]},
+    }
+
+
+def datos_deudores():
+    filas = db().execute(
+        "SELECT e.id, e.nombre, e.cif, e.num_empleados, e.ultima_factura_importe AS importe, "
+        "(SELECT MAX(fecha) FROM historial_pago h WHERE h.empresa_id = e.id AND h.estado = 'deudora') AS desde "
+        "FROM empresas e WHERE e.estado_pago = 'deudora' ORDER BY desde DESC").fetchall()
+    return {"empresas": len(filas), "trabajadores": sum(r["num_empleados"] for r in filas),
+            "importe": round(sum(r["importe"] or 0 for r in filas), 2), "detalle": [dict(r) for r in filas]}
+
+
+def mes_menos(primero: date, n: int) -> date:
+    m = primero.month - 1 - n
+    return date(primero.year + m // 12, m % 12 + 1, 1)
+
+
+@app.route("/dashboard")
+def dashboard():
+    primero = mes_valido(request.args.get("mes"))
+    actual, anterior = datos_mes(primero), datos_mes(mes_menos(primero, 1))
+    historico = [datos_mes(mes_menos(primero, i)) for i in range(5, -1, -1)]
+    maximo = max([1] + [h["implementaciones"]["trabajadores"] for h in historico] + [h["bajas"]["trabajadores"] for h in historico])
+    return render_template("dashboard.html", d=actual, ant=anterior, deud=datos_deudores(), historico=historico,
+                           maximo=maximo, mes_prev=mes_menos(primero, 1).strftime("%Y-%m"),
+                           mes_sig=mes_menos(primero, -1).strftime("%Y-%m"),
+                           es_actual=primero == date.today().replace(day=1))
+
+
+@app.route("/api/dashboard")
+@api
+def api_dashboard():
+    primero = mes_valido(request.args.get("mes"))
+    return {**datos_mes(primero), "deudores_actuales": datos_deudores()}
 
 
 @app.errorhandler(404)
