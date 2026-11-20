@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block titulo %}Conversaciones del asistente{% endblock %}
+{% block contenido %}
+<div class="miga"><span>Informes /</span> Conversaciones del asistente</div>
+<div class="tarjeta">
+  <p class="sub">
+    Últimas 300 preguntas recibidas por el asistente ({{ 'con IA' if modo_ia else 'modo demo, sin IA' }}).
+    <a href="{{ url_for('asistente_demo') }}" target="_blank">Abrir el asistente →</a>
+  </p>
+  <p>
+    <b>{{ tot.total or 0 }}</b> preguntas ·
+    botones: <b>{{ tot.boton or 0 }}</b> · IA: <b>{{ tot.ia or 0 }}</b> · demo: <b>{{ tot.demo or 0 }}</b> ·
+    👍 <b>{{ tot.si or 0 }}</b> · 👎 <b>{{ tot.no or 0 }}</b>
+  </p>
+  <table><thead><tr><th>Fecha</th><th>Rol</th><th>Origen</th><th>Pregunta</th><th>Respuesta</th><th>¿Le sirvió?</th></tr></thead><tbody>
+  {% for f in filas %}<tr>
+    <td>{{ f.fecha|fecha(true) }}</td>
+    <td>{{ f.rol or '-' }}</td>
+    <td><span class="metodo">{{ f.origen }}</span>{% if f.pregunta_id %}<br><small>{{ f.pregunta_id }}</small>{% endif %}</td>
+    <td>{{ f.pregunta }}</td>
+    <td><details><summary><small>Ver respuesta</small></summary><pre style="white-space:pre-wrap;font:inherit;font-size:12px;margin:6px 0 0">{{ f.respuesta }}</pre></details></td>
+    <td>{% if f.util == 1 %}<span class="etq etq-al_dia">Sí</span>{% elif f.util == 0 %}<span class="etq etq-deudora">No</span>{% else %}-{% endif %}</td>
+  </tr>
+  {% else %}<tr><td colspan="6" class="vacio">Todavía no hay conversaciones.</td></tr>{% endfor %}
+  </tbody></table>
+</div>
+{% endblock %}

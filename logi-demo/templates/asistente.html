@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Asistente de Soporte · Demo LogRoot</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22%3E%3Ctext y=%22.9em%22 font-size=%2290%22%3E💬%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='asistente.css') }}">
+  <style>
+    body { margin: 0; font-family: "Inter", system-ui, sans-serif; background: #f2f3f7; color: #2b2f3a; }
+    .demo-cab { background: #2f3349; color: #fff; display: flex; align-items: center; gap: 14px; padding: 0 28px; height: 60px; }
+    .demo-logo { display: flex; align-items: center; gap: 10px; font-weight: 800; font-size: 20px; letter-spacing: .5px; }
+    .demo-logo b { background: #f5c400; color: #2f3349; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; }
+    .demo-cab .etiqueta { margin-left: auto; font-size: 12px; background: rgba(255,255,255,.12); padding: 6px 12px; border-radius: 20px; }
+    .demo-cab a { color: #f5c400; font-size: 13px; text-decoration: none; }
+    main { max-width: 860px; margin: 40px auto; padding: 0 24px; }
+    .tarjeta { background: #fff; border-radius: 14px; padding: 28px 32px; box-shadow: 0 2px 12px rgba(20,24,40,.06); margin-bottom: 20px; }
+    h1 { font-size: 24px; margin: 0 0 8px; color: #2f3349; }
+    h2 { font-size: 16px; margin: 0 0 12px; color: #2f3349; }
+    p, li { line-height: 1.6; }
+    .modo { display: inline-block; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 20px; }
+    .modo.ia { background: #dff5e3; color: #1f7a35; }
+    .modo.demo { background: #fff4c2; color: #7a5d00; }
+    .aviso { font-size: 13px; color: #6b7183; }
+    code { background: #eef0f5; padding: 1px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+<header class="demo-cab">
+  <div class="demo-logo"><b>✱</b> LOGROOT</div>
+  <span class="etiqueta">Entorno de pruebas · datos ficticios</span>
+  <a href="{{ url_for('informe_asistente') }}">Ver conversaciones →</a>
+</header>
+<main>
+  <div class="tarjeta">
+    <h1>Asistente de Soporte LogRoot</h1>
+    <p>Prototipo de chatbot que resuelve las dudas más habituales de <b>empleados</b> y <b>administradores</b>
+      usando solo la documentación de la plataforma. Si no puede resolver algo, deriva al responsable de la empresa o a Soporte.</p>
+    {% if modo_ia %}
+      <span class="modo ia">● IA activada ({{ proveedor }})</span>
+    {% else %}
+      <span class="modo demo">● Modo demo, sin IA</span>
+      <p class="aviso">Los botones funcionan igual. Las preguntas escritas se responden con un buscador por palabras clave.
+        Para activar la IA, configura <code>ASISTENTE_PROVEEDOR</code>, <code>ASISTENTE_API_KEY</code> y <code>ASISTENTE_MODELO</code> en Render.</p>
+    {% endif %}
+  </div>
+  <div class="tarjeta">
+    <h2>Cómo probarlo</h2>
+    <ol>
+      <li>Abre el chat (abajo a la derecha) y elige si eres empleado o administrador.</li>
+      <li>Navega por los botones: categoría → pregunta.</li>
+      <li>O escribe tu duda con tus palabras, por ejemplo: <i>"no me deja salir antes"</i> o <i>"se me olvidó fichar"</i>.</li>
+      <li>Responde a "¿Te ha servido?" para ver cómo deriva cuando no se resuelve.</li>
+    </ol>
+  </div>
+</main>
+
+<div id="lr-chat" data-api="/api/asistente" data-abierto="1"></div>
+<script src="{{ url_for('static', filename='asistente.js') }}"></script>
+</body>
+</html>
