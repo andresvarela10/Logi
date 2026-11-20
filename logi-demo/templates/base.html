@@ -17,6 +17,7 @@
       <button title="Buscar">&#128269;</button>
     </form>
     <div class="iconos-top">
+      <a href="{{ url_for('asistente_demo') }}" title="Asistente de Soporte (chatbot)" target="_blank">&#128172; Asistente</a>
       <a href="{{ url_for('api_docs') }}" title="API para integraciones">&#128268; API</a>
       <a href="{{ url_for('informe_api') }}" title="Registro de llamadas API">&#128221;</a>
       <div class="menu-agente">
@@ -56,6 +57,7 @@
         <a href="{{ url_for('informe_contratos') }}">Fin de contrato / permanencia</a>
         <a href="{{ url_for('informe_bajas') }}">Solicitudes de baja</a>
         <a href="{{ url_for('informe_api') }}">Registro de la API</a>
+        <a href="{{ url_for('informe_asistente') }}">Conversaciones del asistente</a>
       </div>
     </details>
     <details>
