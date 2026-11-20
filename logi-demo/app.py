@@ -1091,6 +1091,12 @@ def api_dashboard():
     return {**datos_mes(primero), "deudores_actuales": datos_deudores()}
 
 
+# --------------------------------------------------------------------- Asistente de Soporte (chatbot)
+import asistente  # noqa: E402
+
+asistente.registrar(app, db)
+
+
 @app.errorhandler(404)
 def no_encontrado(_e):
     if request.path.startswith("/api/"):
